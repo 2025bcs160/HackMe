@@ -242,3 +242,197 @@ class SQLiScanner:
                 pass
         
         return False
+    
+    def test_xss_url(self, url: str, payloads: List[str] = None) -> List[Dict]:
+        """
+        Test URL parameters for XSS vulnerabilities
+        """
+        from xss_payloads import get_all_xss_payloads
+        if payloads is None:
+            payloads = get_all_xss_payloads()
+            
+        results = []
+        parsed_url = urlparse(url)
+        params = parse_qs(parsed_url.query)
+        
+        # Convert to dict format expected by requests
+        param_dict = {k: v[0] if v else "" for k, v in params.items()}
+        
+        if not param_dict:
+            print("[*] No URL parameters found for XSS testing")
+            return results
+        
+        print(f"\n[*] Testing {len(param_dict)} URL parameter(s) for XSS")
+        for param_name in param_dict.keys():
+            for payload in payloads:
+                test_params = param_dict.copy()
+                test_params[param_name] = payload
+                
+                try:
+                    response = self.session.get(
+                        f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}",
+                        params=test_params,
+                        timeout=self.timeout,
+                        verify=self.verify_ssl
+                    )
+                    
+                    # Check for XSS indicators in response
+                    if self._check_xss_indicators(response.text, payload):
+                        results.append({
+                            "type": "XSS - URL Parameter",
+                            "parameter": param_name,
+                            "payload": payload,
+                            "status_code": response.status_code,
+                            "url": response.url,
+                            "xss_type": self._classify_xss(payload)
+                        })
+                        print(f"[+] XSS VULNERABLE: Parameter '{param_name}' with payload: {payload[:50]}")
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"[-] Error testing {param_name}: {str(e)}")
+        
+        return results
+    
+    def test_xss_form(self, url: str, form_data: Dict, method: str = "POST", payloads: List[str] = None) -> List[Dict]:
+        """
+        Test form data for XSS vulnerabilities (stored XSS)
+        """
+        from xss_payloads import get_xss_payloads_by_type
+        if payloads is None:
+            payloads = get_xss_payloads_by_type("stored")
+            
+        results = []
+        print(f"\n[*] Testing {len(form_data)} form parameter(s) for XSS")
+        
+        for param_name in form_data.keys():
+            for payload in payloads:
+                test_data = form_data.copy()
+                test_data[param_name] = payload
+                
+                try:
+                    if method.upper() == "POST":
+                        response = self.session.post(
+                            url,
+                            data=test_data,
+                            timeout=self.timeout,
+                            verify=self.verify_ssl
+                        )
+                    elif method.upper() == "PUT":
+                        response = self.session.put(
+                            url,
+                            data=test_data,
+                            timeout=self.timeout,
+                            verify=self.verify_ssl
+                        )
+                    
+                    # For stored XSS, we also check if the payload appears in subsequent requests
+                    if self._check_xss_indicators(response.text, payload):
+                        results.append({
+                            "type": f"XSS - {method} Parameter",
+                            "parameter": param_name,
+                            "payload": payload,
+                            "status_code": response.status_code,
+                            "url": url,
+                            "xss_type": self._classify_xss(payload)
+                        })
+                        print(f"[+] XSS VULNERABLE: Parameter '{param_name}' with payload: {payload[:50]}")
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"[-] Error testing {param_name}: {str(e)}")
+        
+        return results
+    
+    def test_xss_dom(self, url: str, payloads: List[str] = None) -> List[Dict]:
+        """
+        Test for DOM-based XSS vulnerabilities
+        """
+        from xss_payloads import get_xss_payloads_by_type
+        if payloads is None:
+            payloads = get_xss_payloads_by_type("dom")
+            
+        results = []
+        print(f"\n[*] Testing for DOM-based XSS")
+        
+        for payload in payloads:
+            try:
+                # For DOM-based XSS, we test with fragments/hashes
+                test_url = url + payload
+                response = self.session.get(
+                    test_url,
+                    timeout=self.timeout,
+                    verify=self.verify_ssl
+                )
+                
+                # Check if the payload is executed in the DOM
+                if self._check_dom_xss_indicators(response.text, payload):
+                    results.append({
+                        "type": "XSS - DOM-based",
+                        "parameter": "URL Fragment",
+                        "payload": payload,
+                        "status_code": response.status_code,
+                        "url": test_url,
+                        "xss_type": "DOM-based"
+                    })
+                    print(f"[+] DOM XSS VULNERABLE: {payload[:50]}")
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"[-] Error testing DOM XSS: {str(e)}")
+        
+        return results
+    
+    def _check_xss_indicators(self, response_text: str, payload: str) -> bool:
+        """
+        Check response for XSS indicators
+        """
+        from xss_payloads import XSS_INDICATORS
+        
+        # Check if payload appears unescaped in response
+        if payload in response_text:
+            # Additional checks for XSS patterns
+            for pattern in XSS_INDICATORS:
+                if re.search(pattern, response_text, re.IGNORECASE):
+                    return True
+        
+        # Check for alert boxes or other XSS execution indicators
+        if re.search(r"alert\s*\(", response_text, re.IGNORECASE):
+            return True
+            
+        return False
+    
+    def _check_dom_xss_indicators(self, response_text: str, payload: str) -> bool:
+        """
+        Check for DOM-based XSS indicators
+        """
+        # For DOM XSS, check if the payload from URL fragment is processed
+        fragment = payload.lstrip('#')
+        if fragment in response_text:
+            # Check for dangerous DOM methods
+            dom_patterns = [
+                r"document\.write\s*\(",
+                r"eval\s*\(",
+                r"innerHTML\s*=",
+                r"outerHTML\s*=",
+                r"location\.hash",
+            ]
+            for pattern in dom_patterns:
+                if re.search(pattern, response_text, re.IGNORECASE):
+                    return True
+        
+        return False
+    
+    def _classify_xss(self, payload: str) -> str:
+        """
+        Classify the type of XSS based on payload
+        """
+        if "<script>" in payload.lower() or "</script>" in payload.lower():
+            return "Script Tag"
+        elif "javascript:" in payload.lower():
+            return "JavaScript URI"
+        elif "on" in payload.lower() and "=" in payload:
+            return "Event Handler"
+        elif "<img" in payload.lower() or "<svg" in payload.lower():
+            return "HTML Element"
+        elif "#" in payload:
+            return "DOM-based"
+        else:
+            return "Generic"

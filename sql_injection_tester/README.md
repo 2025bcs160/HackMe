@@ -140,6 +140,60 @@ Display all available SQL injection payloads.
 python main.py payloads
 ```
 
+## XSS Scanning Commands
+
+### scan-xss-url
+Test URL parameters for Cross-Site Scripting (XSS) vulnerabilities.
+
+**Options:**
+- `--url` (required): Target URL with parameters
+- `--timeout` (default: 10): Request timeout in seconds
+- `--skip-ssl`: Skip SSL certificate verification
+- `--output`: Save text report to file
+- `--json-output`: Save JSON report to file
+
+**Example:**
+```bash
+python main.py scan-xss-url --url "http://example.com/search.php?q=test" --output xss_results.txt
+```
+
+### scan-xss-form
+Test form data (POST/PUT) for XSS vulnerabilities.
+
+**Options:**
+- `--url` (required): Target URL
+- `--data` (required): Form data as JSON string
+- `--method` (default: POST): HTTP method (POST or PUT)
+- `--timeout` (default: 10): Request timeout in seconds
+- `--skip-ssl`: Skip SSL verification
+- `--output`: Save report to file
+
+**Example:**
+```bash
+python main.py scan-xss-form --url "http://example.com/comment" --data '{"name":"test","comment":"test comment"}'
+```
+
+### scan-xss-dom
+Test for DOM-based XSS vulnerabilities by analyzing JavaScript code.
+
+**Options:**
+- `--url` (required): Target URL
+- `--timeout` (default: 10): Request timeout in seconds
+- `--skip-ssl`: Skip SSL verification
+- `--output`: Save report to file
+
+**Example:**
+```bash
+python main.py scan-xss-dom --url "http://example.com/page" --output dom_xss_results.txt
+```
+
+### xss-payloads
+Display all available XSS payloads organized by category.
+
+```bash
+python main.py xss-payloads
+```
+
 ## Example Walkthrough
 
 ### Testing a Local Web Application

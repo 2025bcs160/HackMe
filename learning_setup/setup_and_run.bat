@@ -20,19 +20,20 @@ if errorlevel 1 (
 
 echo [*] Python found. Installing dependencies...
 
-REM Install Flask for the vulnerable app
-pip install flask
+REM Change to the learning setup directory first
+cd /d "%~dp0"
+
+REM Install required Python packages for the learning and scanner tools
+pip install -r requirements.txt
+pip install -r "%~dp0..\sql_injection_tester\requirements.txt"
 
 if errorlevel 1 (
-    echo [ERROR] Failed to install Flask
+    echo [ERROR] Failed to install required Python packages
     pause
     exit /b 1
 )
 
 echo [*] Dependencies installed successfully!
-
-REM Change to the learning setup directory
-cd /d "%~dp0"
 
 echo.
 echo ===================================================

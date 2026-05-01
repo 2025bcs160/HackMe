@@ -27,56 +27,111 @@ def run_command(cmd, description):
         return False
 
 def main():
-    print("🚀 SQL Injection Learning - Quick Test Script")
+    print("🚀 Cybersecurity Learning - Quick Test Script")
     print("=" * 60)
-    print("This script will test your SQL injection scanner")
-    print("Make sure the vulnerable app is running on http://localhost:5000")
+    print("This script will test your SQL injection and XSS scanners")
+    print("Make sure both vulnerable apps are running:")
+    print("- SQLi app: http://localhost:5000")
+    print("- XSS app: http://localhost:5001")
     print()
 
-    # Check if vulnerable app is running
-    print("Checking if vulnerable app is running...")
+    # Check if vulnerable apps are running
+    sqli_running = False
+    xss_running = False
+
+    print("Checking if vulnerable apps are running...")
     try:
         import requests
         response = requests.get("http://localhost:5000", timeout=5)
         if response.status_code == 200:
-            print("✅ Vulnerable app is running!")
+            print("✅ SQL Injection app is running!")
+            sqli_running = True
         else:
-            print("❌ Vulnerable app not responding")
-            print("Please run: cd learning_setup && python vulnerable_app.py")
-            return
+            print("❌ SQL Injection app not responding")
     except:
-        print("❌ Cannot connect to vulnerable app")
-        print("Please run: cd learning_setup && python vulnerable_app.py")
+        print("❌ Cannot connect to SQL Injection app")
+
+    try:
+        response = requests.get("http://localhost:5001", timeout=5)
+        if response.status_code == 200:
+            print("✅ XSS app is running!")
+            xss_running = True
+        else:
+            print("❌ XSS app not responding")
+    except:
+        print("❌ Cannot connect to XSS app")
+
+    if not sqli_running and not xss_running:
+        print("\nPlease run the vulnerable apps first:")
+        print("cd learning_setup")
+        print("python vulnerable_app.py      # SQLi on port 5000")
+        print("python vulnerable_xss_app.py  # XSS on port 5001")
         return
 
-    # Change to the scanner directory
-    scanner_dir = r"c:\Users\2025b.RAFFYG\Desktop\HackMe\sql_injection_tester"
-    os.chdir(scanner_dir)
+    print("\nStarting scanner tests...")
 
+    # Compute the scanner directory relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    scanner_dir = os.path.normpath(os.path.join(script_dir, "..", "sql_injection_tester"))
+
+    if not os.path.isdir(scanner_dir):
+        print(f"❌ Scanner directory not found: {scanner_dir}")
+        return
+
+    os.chdir(scanner_dir)
     print(f"\nChanged to scanner directory: {scanner_dir}")
 
-    # Test 1: Basic URL parameter scanning
-    run_command(
-        'python main.py scan-url --url "http://localhost:5000/search?id=1"',
-        "Test 1: Basic URL Parameter Scanning"
-    )
+    # SQL Injection Tests
+    if sqli_running:
+        print("\n🔍 SQL INJECTION TESTS")
+        print("=" * 40)
 
-    # Test 2: Login form scanning
-    run_command(
-        'python main.py scan-form --url "http://localhost:5000/login" --data "{\\"username\\":\\"admin\\",\\"password\\":\\"test\\"}"',
-        "Test 2: Login Form Scanning"
-    )
+        # Test 1: Basic URL parameter scanning
+        run_command(
+            'python main.py scan-url --url "http://localhost:5000/search?id=1"',
+            "Test 1: SQLi - URL Parameter Scanning"
+        )
 
-    # Test 3: API endpoint scanning
-    run_command(
-        'python main.py scan-json-api --url "http://localhost:5000/api/search" --json-data "{\\"query\\":\\"admin\\",\\"table\\":\\"users\\"}"',
-        "Test 3: JSON API Scanning"
-    )
+        # Test 2: Login form scanning
+        run_command(
+            'python main.py scan-form --url "http://localhost:5000/login" --data "{\\"username\\":\\"admin\\",\\"password\\":\\"test\\"}"',
+            "Test 2: SQLi - Login Form Scanning"
+        )
 
-    # Test 4: Generate report
-    run_command(
-        'python main.py scan-url --url "http://localhost:5000/search?id=1" --output learning_test_report.txt',
-        "Test 4: Generate Report"
+        # Test 3: API endpoint scanning
+        run_command(
+            'python main.py scan-json-api --url "http://localhost:5000/api/search" --json-data "{\\"query\\":\\"admin\\",\\"table\\":\\"users\\"}"',
+            "Test 3: SQLi - JSON API Scanning"
+        )
+
+    # XSS Tests
+    if xss_running:
+        print("\n🔍 XSS TESTS")
+        print("=" * 40)
+
+        # Test 4: XSS URL parameter scanning
+        run_command(
+            'python main.py scan-xss-url --url "http://localhost:5001/reflected?q=test"',
+            "Test 4: XSS - Reflected XSS Scanning"
+        )
+
+        # Test 5: XSS form scanning
+        run_command(
+            'python main.py scan-xss-form --url "http://localhost:5001/stored" --data "{\\"name\\":\\"test\\",\\"comment\\":\\"test comment\\"}"',
+            "Test 5: XSS - Stored XSS Form Scanning"
+        )
+
+        # Test 6: DOM-based XSS scanning
+        run_command(
+            'python main.py scan-xss-dom --url "http://localhost:5001/dom"',
+            "Test 6: XSS - DOM-based XSS Scanning"
+        )
+
+    # Test 7: Generate report
+    if sqli_running:
+        run_command(
+            'python main.py scan-url --url "http://localhost:5000/search?id=1" --output learning_test_report.txt',
+            "Test 7: Generate Report"
     )
 
     print(f"\n{'='*60}")

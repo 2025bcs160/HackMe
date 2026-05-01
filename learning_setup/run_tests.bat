@@ -11,6 +11,9 @@ echo.
 echo Press any key to start testing...
 pause >nul
 
+REM Change to the learning setup directory
+cd /d "%~dp0"
+
 REM Run the test script
 python test_scanner.py
 
