@@ -65,6 +65,16 @@ python main.py scan-form --url "http://localhost:5000/login" --data '{"username"
 python main.py scan-json-api --url "http://localhost:5000/api/search" --json-data '{"query":"admin","table":"users"}'
 ```
 
+### Authorized External Site Testing
+You can also scan real websites such as `.com` domains if you have explicit written permission.
+For external targets, use the `--confirm-authorization` flag:
+
+```bash
+python main.py scan-url --url "https://example.com/search?q=test" --confirm-authorization
+```
+
+Always obtain permission before testing any real site. Unauthorized scanning is illegal and unethical.
+
 **XSS Testing:**
 ```batch
 # Test reflected XSS

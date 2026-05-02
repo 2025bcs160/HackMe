@@ -7,6 +7,8 @@ A comprehensive tool for testing SQL injection vulnerabilities in web applicatio
 import click
 import json
 import sys
+import ipaddress
+from urllib.parse import urlparse
 from scanner import SQLiScanner
 from reporter import Reporter
 from colorama import Fore, Style, init
@@ -24,19 +26,47 @@ def cli():
     """
     pass
 
+
+def is_local_target(url):
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if not host:
+            return False
+        if host in ('localhost', '127.0.0.1', '::1'):
+            return True
+        if host.endswith('.local'):
+            return True
+        ip = ipaddress.ip_address(host)
+        return ip.is_loopback or ip.is_private or ip.is_link_local
+    except ValueError:
+        return False
+    except Exception:
+        return False
+
+
+def require_authorization(url, confirm_authorization):
+    if not is_local_target(url) and not confirm_authorization:
+        click.secho("[-] External target detected. You must supply --confirm-authorization to proceed.", fg='red', bold=True)
+        click.secho("Only scan systems you own or have explicit permission to test.", fg='red')
+        sys.exit(1)
+
+
 @cli.command()
 @click.option('--url', required=True, help='Target URL to scan')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file (text format)')
 @click.option('--json-output', help='Output report file (JSON format)')
-def scan_url(url, timeout, skip_ssl, output, json_output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_url(url, timeout, skip_ssl, output, json_output, confirm_authorization):
     """
     Scan URL parameters for SQL injection vulnerabilities
     
     Example: python main.py scan-url --url "http://example.com/search.php?q=test"
     """
     click.secho("[*] Starting SQL Injection scan on URL parameters...", fg='cyan')
+    require_authorization(url, confirm_authorization)
     
     scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
     results = scanner.test_url_parameters(url)
@@ -63,22 +93,44 @@ def scan_url(url, timeout, skip_ssl, output, json_output):
 
 @cli.command()
 @click.option('--url', required=True, help='Target API endpoint URL')
-@click.option('--json-data', required=True, help='JSON payload as string (e.g., \'{"id": "1"}\')')
+@click.option('--json-data', help="JSON payload as string (PowerShell: use single quotes - '{\"id\": \"1\"}')")
+@click.option('--json-file', type=click.Path(exists=True, dir_okay=False, readable=True), help='Path to a local JSON file containing the request payload')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
-def scan_json_api(url, json_data, timeout, skip_ssl, output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_json_api(url, json_data, json_file, timeout, skip_ssl, output, confirm_authorization):
     """
     Test JSON API parameters for SQL injection
     
-    Example: python main.py scan-json-api --url "http://api.example.com/search" --json-data '{"query":"test"}'
+    PowerShell Examples:
+      python main.py scan-json-api --url "http://api.example.com/search" --json-data '{\"query\":\"test\"}'
+      python main.py scan-json-api --url "http://localhost:5000/api/search" --json-file data.json --confirm-authorization
     """
     click.secho("[*] Starting SQL Injection scan on JSON API...", fg='cyan')
+    require_authorization(url, confirm_authorization)
+    
+    if not json_data and not json_file:
+        click.secho("[-] You must provide either --json-data or --json-file.", fg='red', bold=True)
+        sys.exit(1)
+    if json_data and json_file:
+        click.secho("[-] Provide only one of --json-data or --json-file, not both.", fg='red', bold=True)
+        sys.exit(1)
+    
+    if json_file:
+        try:
+            with open(json_file, 'r', encoding='utf-8-sig') as f:
+                json_text = f.read()
+        except OSError as e:
+            click.secho(f"[-] Failed to read JSON file: {e}", fg='red', bold=True)
+            sys.exit(1)
+    else:
+        json_text = json_data
     
     try:
-        data = json.loads(json_data)
-    except json.JSONDecodeError:
-        click.secho("[-] Invalid JSON format!", fg='red', bold=True)
+        data = json.loads(json_text)
+    except json.JSONDecodeError as e:
+        click.secho(f"[-] Invalid JSON format: {e}", fg='red', bold=True)
         sys.exit(1)
     
     scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
@@ -100,18 +152,20 @@ def scan_json_api(url, json_data, timeout, skip_ssl, output):
 
 @cli.command()
 @click.option('--url', required=True, help='Target URL')
-@click.option('--data', required=True, help='Form data as JSON string (e.g., \'{"username":"admin","password":"pass"}\')')
+@click.option('--data', required=True, help="Form data as JSON string (PowerShell: use single quotes - '{\"username\":\"admin\",\"password\":\"pass\"}')")
 @click.option('--method', default='POST', type=click.Choice(['POST', 'PUT']), help='HTTP method')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
-def scan_form(url, data, method, timeout, skip_ssl, output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_form(url, data, method, timeout, skip_ssl, output, confirm_authorization):
     """
     Test form data (POST/PUT) for SQL injection
     
     Example: python main.py scan-form --url "http://example.com/login" --data '{"username":"admin","password":"pass"}'
     """
     click.secho(f"[*] Starting SQL Injection scan on {method} form data...", fg='cyan')
+    require_authorization(url, confirm_authorization)
     
     try:
         form_data = json.loads(data)
@@ -138,17 +192,20 @@ def scan_form(url, data, method, timeout, skip_ssl, output):
 
 @cli.command()
 @click.option('--url', required=True, help='Target URL')
-@click.option('--headers', required=True, help='Headers as JSON string (e.g., \'{"User-Agent":"Test","X-Custom":"Value"}\')')
+@click.option('--headers', required=True, help="Headers as JSON string (e.g., '{\"User-Agent\":\"Test\",\"X-Custom\":\"Value\"}')")
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
-def scan_headers(url, headers, timeout, skip_ssl, output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_headers(url, headers, timeout, skip_ssl, output, confirm_authorization):
     """
     Test HTTP headers for SQL injection vulnerabilities
     
     Example: python main.py scan-headers --url "http://example.com" --headers '{"User-Agent":"test","X-Custom":"test"}'
     """
     click.secho("[*] Starting SQL Injection scan on HTTP headers...", fg='cyan')
+    require_authorization(url, confirm_authorization)
+    
     
     try:
         headers_dict = json.loads(headers)
@@ -194,13 +251,15 @@ def payloads():
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
 @click.option('--payload-type', default='all', type=click.Choice(['all', 'basic', 'reflected', 'stored', 'dom', 'advanced', 'event', 'encoded', 'bypass']), help='Type of XSS payloads to use')
-def scan_xss_url(url, timeout, skip_ssl, output, payload_type):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_xss_url(url, timeout, skip_ssl, output, payload_type, confirm_authorization):
     """
     Scan URL parameters for XSS vulnerabilities
     
     Example: python main.py scan-xss-url --url "http://localhost/search.php?q=test"
     """
     click.secho("[*] Starting XSS scan on URL parameters...", fg='cyan')
+    require_authorization(url, confirm_authorization)
     
     from xss_payloads import get_xss_payloads_by_type
     payloads = get_xss_payloads_by_type(payload_type)
@@ -224,18 +283,20 @@ def scan_xss_url(url, timeout, skip_ssl, output, payload_type):
 
 @cli.command()
 @click.option('--url', required=True, help='Target URL')
-@click.option('--data', required=True, help='Form data as JSON string (e.g., \'{"comment":"test","name":"user"}\')')
+@click.option('--data', required=True, help="Form data as JSON string (e.g., '{\"comment\":\"test\",\"name\":\"user\"}')")
 @click.option('--method', default='POST', type=click.Choice(['POST', 'PUT']), help='HTTP method')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
-def scan_xss_form(url, data, method, timeout, skip_ssl, output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_xss_form(url, data, method, timeout, skip_ssl, output, confirm_authorization):
     """
     Test form data for XSS vulnerabilities (stored XSS)
     
     Example: python main.py scan-xss-form --url "http://localhost/comment" --data '{"comment":"test comment","name":"user"}'
     """
     click.secho(f"[*] Starting XSS scan on {method} form data...", fg='cyan')
+    require_authorization(url, confirm_authorization)
     
     try:
         form_data = json.loads(data)
@@ -265,13 +326,15 @@ def scan_xss_form(url, data, method, timeout, skip_ssl, output):
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
 @click.option('--output', help='Output report file')
-def scan_xss_dom(url, timeout, skip_ssl, output):
+@click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
+def scan_xss_dom(url, timeout, skip_ssl, output, confirm_authorization):
     """
     Test for DOM-based XSS vulnerabilities
     
     Example: python main.py scan-xss-dom --url "http://localhost/page#"
     """
     click.secho("[*] Starting DOM-based XSS scan...", fg='cyan')
+    require_authorization(url, confirm_authorization)
     
     scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
     results = scanner.test_xss_dom(url)

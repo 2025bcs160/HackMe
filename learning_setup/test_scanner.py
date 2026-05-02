@@ -132,7 +132,7 @@ def main():
         run_command(
             'python main.py scan-url --url "http://localhost:5000/search?id=1" --output learning_test_report.txt',
             "Test 7: Generate Report"
-    )
+        )
 
     print(f"\n{'='*60}")
     print("🎉 Testing Complete!")

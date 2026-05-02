@@ -35,6 +35,16 @@ python main.py --help
 python main.py scan-url --help
 ```
 
+### Authorized .com and External Site Testing
+This tool can scan any URL, including real `.com` domains, but only when you have explicit authorization.
+For external targets, add `--confirm-authorization` to your scan command.
+
+```bash
+python main.py scan-url --url "https://example.com/search?q=test" --confirm-authorization
+```
+
+Only test websites you own or have written permission to audit. Unauthorized scanning is illegal.
+
 ### 1. Scan URL Parameters
 Test a URL with query parameters:
 ```bash

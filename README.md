@@ -25,6 +25,16 @@ This repository contains a local learning environment for practicing web securit
    run_tests.bat
    ```
 
+## External Target Scanning
+
+This tool can scan external `.com` websites when you have explicit authorization.
+Use the `--confirm-authorization` flag to confirm you have permission:
+
+```batch
+cd sql_injection_tester
+python main.py scan-url --url "https://example.com/search?q=test" --confirm-authorization
+```
+
 ## Recommended Workflow
 
 - Start `learning_setup/vulnerable_app.py` for the SQL injection lab.
