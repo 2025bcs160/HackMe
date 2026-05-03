@@ -41,11 +41,21 @@ class Reporter:
             for idx, vuln in enumerate(results, 1):
                 report.append(f"\n{idx}. VULNERABILITY FOUND")
                 report.append("-" * 70)
-                report.append(f"   Type:       {vuln['type']}")
-                report.append(f"   Parameter:  {vuln['parameter']}")
-                report.append(f"   Payload:    {vuln['payload']}")
-                report.append(f"   Status:     {vuln['status_code']}")
-                report.append(f"   URL:        {vuln['url']}")
+                report.append(f"   Type:            {vuln.get('type', 'N/A')}")
+                report.append(f"   Parameter:       {vuln.get('parameter', 'N/A')}")
+                report.append(f"   Payload:         {vuln.get('payload', 'N/A')}")
+                report.append(f"   Confidence:      {vuln.get('confidence', 'N/A')}")
+                report.append(f"   Status:          {vuln.get('status_code', 'N/A')}")
+                report.append(f"   URL:             {vuln.get('url', 'N/A')}")
+                report.append(f"   Response Time:   {vuln.get('response_time', 0.0):.2f}s")
+                report.append(f"   Similarity:      {vuln.get('similarity', 0.0):.2f}")
+                report.append(f"   Baseline Status: {vuln.get('baseline_status', 'N/A')}")
+                report.append(f"   Baseline Length: {vuln.get('baseline_length', 'N/A')}")
+                report.append(f"   Response Length: {vuln.get('response_length', 'N/A')}")
+                if vuln.get('evidence'):
+                    report.append(f"   Evidence:")
+                    for item in vuln['evidence']:
+                        report.append(f"      - {item}")
         
         report.append("\n" + "=" * 70)
         report.append("RECOMMENDATIONS:")

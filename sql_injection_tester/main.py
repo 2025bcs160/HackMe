@@ -52,14 +52,26 @@ def require_authorization(url, confirm_authorization):
         sys.exit(1)
 
 
+def parse_json_option(value, name):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        click.secho(f"[-] Invalid JSON format for {name}", fg='red', bold=True)
+        sys.exit(1)
+
+
 @cli.command()
 @click.option('--url', required=True, help='Target URL to scan')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
+@click.option('--session-headers', help='Request headers as JSON string for authenticated sessions')
+@click.option('--session-cookies', help='Request cookies as JSON string for authenticated sessions')
 @click.option('--output', help='Output report file (text format)')
 @click.option('--json-output', help='Output report file (JSON format)')
 @click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
-def scan_url(url, timeout, skip_ssl, output, json_output, confirm_authorization):
+def scan_url(url, timeout, skip_ssl, session_headers, session_cookies, output, json_output, confirm_authorization):
     """
     Scan URL parameters for SQL injection vulnerabilities
     
@@ -68,8 +80,10 @@ def scan_url(url, timeout, skip_ssl, output, json_output, confirm_authorization)
     click.secho("[*] Starting SQL Injection scan on URL parameters...", fg='cyan')
     require_authorization(url, confirm_authorization)
     
-    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
-    results = scanner.test_url_parameters(url)
+    parsed_headers = parse_json_option(session_headers, '--session-headers')
+    parsed_cookies = parse_json_option(session_cookies, '--session-cookies')
+    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl, default_headers=parsed_headers, default_cookies=parsed_cookies)
+    results = scanner.test_url_parameters(url, session_headers=parsed_headers, session_cookies=parsed_cookies)
     
     # Generate reports
     if output or json_output:
@@ -97,9 +111,11 @@ def scan_url(url, timeout, skip_ssl, output, json_output, confirm_authorization)
 @click.option('--json-file', type=click.Path(exists=True, dir_okay=False, readable=True), help='Path to a local JSON file containing the request payload')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
+@click.option('--session-headers', help='Request headers as JSON string for authenticated sessions')
+@click.option('--session-cookies', help='Request cookies as JSON string for authenticated sessions')
 @click.option('--output', help='Output report file')
 @click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
-def scan_json_api(url, json_data, json_file, timeout, skip_ssl, output, confirm_authorization):
+def scan_json_api(url, json_data, json_file, timeout, skip_ssl, session_headers, session_cookies, output, confirm_authorization):
     """
     Test JSON API parameters for SQL injection
     
@@ -132,9 +148,11 @@ def scan_json_api(url, json_data, json_file, timeout, skip_ssl, output, confirm_
     except json.JSONDecodeError as e:
         click.secho(f"[-] Invalid JSON format: {e}", fg='red', bold=True)
         sys.exit(1)
-    
-    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
-    results = scanner.test_json_data(url, data)
+
+    parsed_headers = parse_json_option(session_headers, '--session-headers')
+    parsed_cookies = parse_json_option(session_cookies, '--session-cookies')
+    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl, default_headers=parsed_headers, default_cookies=parsed_cookies)
+    results = scanner.test_json_data(url, data, session_headers=parsed_headers, session_cookies=parsed_cookies)
     
     if output:
         reporter = Reporter(output_format="text")
@@ -156,9 +174,11 @@ def scan_json_api(url, json_data, json_file, timeout, skip_ssl, output, confirm_
 @click.option('--method', default='POST', type=click.Choice(['POST', 'PUT']), help='HTTP method')
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
+@click.option('--session-headers', help='Request headers as JSON string for authenticated sessions')
+@click.option('--session-cookies', help='Request cookies as JSON string for authenticated sessions')
 @click.option('--output', help='Output report file')
 @click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
-def scan_form(url, data, method, timeout, skip_ssl, output, confirm_authorization):
+def scan_form(url, data, method, timeout, skip_ssl, session_headers, session_cookies, output, confirm_authorization):
     """
     Test form data (POST/PUT) for SQL injection
     
@@ -172,9 +192,11 @@ def scan_form(url, data, method, timeout, skip_ssl, output, confirm_authorizatio
     except json.JSONDecodeError:
         click.secho("[-] Invalid JSON format!", fg='red', bold=True)
         sys.exit(1)
-    
-    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
-    results = scanner.test_form_data(url, form_data, method=method)
+
+    parsed_headers = parse_json_option(session_headers, '--session-headers')
+    parsed_cookies = parse_json_option(session_cookies, '--session-cookies')
+    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl, default_headers=parsed_headers, default_cookies=parsed_cookies)
+    results = scanner.test_form_data(url, form_data, method=method, session_headers=parsed_headers, session_cookies=parsed_cookies)
     
     if output:
         reporter = Reporter(output_format="text")
@@ -195,9 +217,11 @@ def scan_form(url, data, method, timeout, skip_ssl, output, confirm_authorizatio
 @click.option('--headers', required=True, help="Headers as JSON string (e.g., '{\"User-Agent\":\"Test\",\"X-Custom\":\"Value\"}')")
 @click.option('--timeout', default=10, help='Request timeout in seconds')
 @click.option('--skip-ssl', is_flag=True, help='Skip SSL verification')
+@click.option('--session-headers', help='Request headers as JSON string for authenticated sessions')
+@click.option('--session-cookies', help='Request cookies as JSON string for authenticated sessions')
 @click.option('--output', help='Output report file')
 @click.option('--confirm-authorization', is_flag=True, help='Confirm you have explicit authorization to test the target')
-def scan_headers(url, headers, timeout, skip_ssl, output, confirm_authorization):
+def scan_headers(url, headers, timeout, skip_ssl, session_headers, session_cookies, output, confirm_authorization):
     """
     Test HTTP headers for SQL injection vulnerabilities
     
@@ -212,9 +236,11 @@ def scan_headers(url, headers, timeout, skip_ssl, output, confirm_authorization)
     except json.JSONDecodeError:
         click.secho("[-] Invalid JSON format!", fg='red', bold=True)
         sys.exit(1)
-    
-    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl)
-    results = scanner.test_headers(url, headers_dict)
+
+    parsed_headers = parse_json_option(session_headers, '--session-headers')
+    parsed_cookies = parse_json_option(session_cookies, '--session-cookies')
+    scanner = SQLiScanner(timeout=timeout, verify_ssl=not skip_ssl, default_headers=parsed_headers, default_cookies=parsed_cookies)
+    results = scanner.test_headers(url, headers_dict, session_headers=parsed_headers, session_cookies=parsed_cookies)
     
     if output:
         reporter = Reporter(output_format="text")
